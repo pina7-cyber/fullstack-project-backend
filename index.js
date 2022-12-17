@@ -4,17 +4,17 @@ const { v1: uuid } = require("uuid")
 let users = [
   {
     username: "Robi",
-    id: "afa51ab0-344d-11e9-a414-719c6709cf3e",
+    id: "fjk5thw-344d-11e9-a414-719c6709cf3e",
     registered: 1952,
   },
   {
     username: "Sabrina",
-    id: "afa51ab0-344d-11e9-a414-719c6709cf3e",
+    id: "hjkwgh-344d-11e9-a414-719c6709cf3e",
     registered: 1952,
   },
   {
     username: "freak",
-    id: "afa51ab0-344d-11e9-a414-719c6709cf3e",
+    id: "hgkjewr-344d-11e9-a414-719c6709cf3e",
     registered: 1952,
   },
 ]
@@ -25,21 +25,21 @@ let topics = [
     content: "hoe to solve 1X1",
     comments: ["does not work", "how to do 1x1"],
     keywords: ["beginners", "multiply"],
-    id: "3d594650-3436-11e9-bc57-8b80ba54c431",
+    id: "56767674-3436-11e9-bc57-8b80ba54c431",
   },
   {
     categories: ["data science"],
     content: "problem with react hooks",
     comments: ["react is easy", "hooks are awsome"],
     keywords: ["beginners", "patterns", "design"],
-    id: "3d594650-3436-11e9-bc57-8b80ba54c431",
+    id: "6365646-3436-11e9-bc57-8b80ba54c431",
   },
   {
     categories: ["data science"],
     content: "backend using graphQL",
     comments: [],
     keywords: ["backend", "graphQL"],
-    id: "3d594650-3436-11e9-bc57-8b80ba54c431",
+    id: "573544262-3436-11e9-bc57-8b80ba54c431",
   },
 ]
 
@@ -57,7 +57,7 @@ const typeDefs = gql`
     id: ID!
   }
   type Query {
-    allTopics(category: String, keyword: String): [Topic!]!
+    allTopics(category: String, keyword: String, id: ID): [Topic!]!
     allUsers: [User!]!
   }
   type Mutation {
@@ -72,6 +72,9 @@ const typeDefs = gql`
 const resolvers = {
   Query: {
     allTopics: (root, args) => {
+      if (args.id) {
+        return topics.filter((t) => t.id === args.id)
+      }
       if (!args.keyword) {
         if (!args.category) {
           return topics
