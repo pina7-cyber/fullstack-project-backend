@@ -1,47 +1,44 @@
 const { ApolloServer, UserInputError, gql } = require("apollo-server")
-const { v1: uuid } = require("uuid")
+require("dotenv").config()
+const User = require("./models/user")
+const Topic = require("./models/topic")
+const mongoose = require("mongoose")
+const jwt = require("jsonwebtoken")
 
-let users = [
-  {
-    username: "Robi",
-    id: "fjk5thw-344d-11e9-a414-719c6709cf3e",
-    registered: 1952,
-  },
-  {
-    username: "Sabrina",
-    id: "hjkwgh-344d-11e9-a414-719c6709cf3e",
-    registered: 1952,
-  },
-  {
-    username: "freak",
-    id: "hgkjewr-344d-11e9-a414-719c6709cf3e",
-    registered: 1952,
-  },
-]
+const JWT_SECRET = process.env.JWT_SECRET
+const MONGODB_URI = process.env.MONGODB_URI
 
-let topics = [
-  {
-    categories: ["math", "physics"],
-    content: "hoe to solve 1X1",
-    comments: ["does not work", "how to do 1x1"],
-    keywords: ["beginners", "multiply"],
-    id: "56767674-3436-11e9-bc57-8b80ba54c431",
-  },
-  {
-    categories: ["data science"],
-    content: "problem with react hooks",
-    comments: ["react is easy", "hooks are awsome"],
-    keywords: ["beginners", "patterns", "design"],
-    id: "6365646-3436-11e9-bc57-8b80ba54c431",
-  },
-  {
-    categories: ["data science"],
-    content: "backend using graphQL",
-    comments: [],
-    keywords: ["backend", "graphQL"],
-    id: "573544262-3436-11e9-bc57-8b80ba54c431",
-  },
-]
+console.log("connecting to", MONGODB_URI)
+
+mongoose.set("strictQuery", true)
+mongoose
+  .connect(MONGODB_URI)
+  .then(() => {
+    console.log("connected to MongoDB")
+  })
+  .catch((error) => {
+    console.log("error connection to MongoDB:", error.message)
+  })
+
+// let users = [
+//   {
+//     username: "Robi",
+//     id: "fjk5thw-344d-11e9-a414-719c6709cf3e",
+//     registered: 1952,
+//   },
+//   {
+//     username: "Sabrina",
+//     id: "hjkwgh-344d-11e9-a414-719c6709cf3e",
+//     registered: 1952,
+//   },
+//   {
+//     username: "freak",
+//     id: "hgkjewr-344d-11e9-a414-719c6709cf3e",
+//     registered: 1952,
+//   },
+// ]
+
+
 
 const typeDefs = gql`
   type User {
@@ -52,6 +49,7 @@ const typeDefs = gql`
   type Topic {
     categories: [String!]!
     content: String!
+    user: User!
     comments: [String]!
     keywords: [String!]!
     id: ID!
@@ -71,40 +69,54 @@ const typeDefs = gql`
 
 const resolvers = {
   Query: {
-    allTopics: (root, args) => {
-      if (args.id) {
-        return topics.filter((t) => t.id === args.id)
+    allTopics: async (root, args) => {
+      const topic = await Topic.findOne({ _id: { $in: [args.id] } }).populate(
+        "user"
+      )
+      if (topic) {
+        return Topic.find({ _id: { $in: [args.id] } }).populate("user")
       }
       if (!args.keyword) {
         if (!args.category) {
-          return topics
+          return Topic.find({}).populate("user")
         }
-        return topics.filter((t) =>
-          t.categories.find((c) => c === args.category)
+        return Topic.find({ categories: { $in: [args.category] } }).populate(
+          "user"
         )
       }
       if (!args.category) {
-        return topics.filter((t) => t.keywords.find((k) => k === args.keyword))
+        return Topic.find({ keywords: { $in: [args.keyword] } }).populate(
+          "user"
+        )
       }
-      return topics
-        .filter((t) => t.categories.find((c) => c === args.category))
-        .filter((t) => t.keywords.find((k) => k === args.keyword))
+      return Topic.find({
+        categories: { $in: [args.category] },
+        keywords: { $in: [args.keyword] },
+      }).populate("user")
     },
     allUsers: (root, args) => {
-      return users
+      return User.find({})
     },
   },
 
   Mutation: {
-    addTopic: (root, args) => {
-      if (topics.find((t) => t.content === args.content)) {
-        throw new UserInputError("already in store", {
+    addTopic: async (root, args) => {
+      const existingTopic = await Topic.findOne({ content: { $in: [args.content] } })
+      if (existingTopic) {
+        console.log(existingTopic)
+        throw new UserInputError("topic already exists", {
           invalidArgs: args.content,
         })
       }
+      const topic = new Topic({ ...args, comments: [] })
+      try {
+        await topic.save()
+      } catch (error) {
+        throw new UserInputError(error.message, {
+          invalidArgs: args,
+        })
+      }
 
-      const topic = { ...args, id: uuid(), comments: [] }
-      topics = topics.concat(topic)
       return topic
     },
   },
