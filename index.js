@@ -4,6 +4,7 @@ const User = require("./models/user")
 const Topic = require("./models/topic")
 const mongoose = require("mongoose")
 const jwt = require("jsonwebtoken")
+const bcrypt = require("bcrypt")
 
 const JWT_SECRET = process.env.JWT_SECRET
 const MONGODB_URI = process.env.MONGODB_URI
@@ -20,31 +21,14 @@ mongoose
     console.log("error connection to MongoDB:", error.message)
   })
 
-// let users = [
-//   {
-//     username: "Robi",
-//     id: "fjk5thw-344d-11e9-a414-719c6709cf3e",
-//     registered: 1952,
-//   },
-//   {
-//     username: "Sabrina",
-//     id: "hjkwgh-344d-11e9-a414-719c6709cf3e",
-//     registered: 1952,
-//   },
-//   {
-//     username: "freak",
-//     id: "hgkjewr-344d-11e9-a414-719c6709cf3e",
-//     registered: 1952,
-//   },
-// ]
-
-
-
 const typeDefs = gql`
   type User {
     username: String!
     id: ID!
-    registered: Int!
+    passwordHash: String!
+  }
+  type Token {
+    value: String!
   }
   type Topic {
     categories: [String!]!
@@ -57,6 +41,7 @@ const typeDefs = gql`
   type Query {
     allTopics(category: String, keyword: String, id: ID): [Topic!]!
     allUsers: [User!]!
+    me: User
   }
   type Mutation {
     addTopic(
@@ -64,6 +49,8 @@ const typeDefs = gql`
       content: String!
       keywords: [String!]!
     ): Topic
+    createUser(username: String!, password: String!): User
+    login(username: String!, password: String!): Token
   }
 `
 
@@ -94,14 +81,19 @@ const resolvers = {
         keywords: { $in: [args.keyword] },
       }).populate("user")
     },
-    allUsers: (root, args) => {
+    allUsers: async (root, args) => {
       return User.find({})
+    },
+    me: (root, args, context) => {
+      return context.currentUser
     },
   },
 
   Mutation: {
     addTopic: async (root, args) => {
-      const existingTopic = await Topic.findOne({ content: { $in: [args.content] } })
+      const existingTopic = await Topic.findOne({
+        content: { $in: [args.content] },
+      })
       if (existingTopic) {
         console.log(existingTopic)
         throw new UserInputError("topic already exists", {
@@ -116,8 +108,38 @@ const resolvers = {
           invalidArgs: args,
         })
       }
-
       return topic
+    },
+    createUser: async (root, args) => {
+      const saltRounds = 10
+      const passwordHash = await bcrypt.hash(args.password, saltRounds)
+      const user = new User({
+        username: args.username,
+        passwordHash: passwordHash,
+      })
+      return user.save().catch((error) => {
+        throw new UserInputError(error.message, {
+          invalidArgs: args,
+        })
+      })
+    },
+    login: async (root, args) => {
+      const user = await User.findOne({ username: args.username })
+      const passwordCorrect =
+        user === null
+          ? false
+          : await bcrypt.compare(args.password, user.passwordHash)
+
+      if (!(user && passwordCorrect)) {
+        throw new UserInputError("wrong credentials")
+      }
+
+      const userForToken = {
+        username: user.username,
+        id: user._id,
+      }
+
+      return { value: jwt.sign(userForToken, JWT_SECRET) }
     },
   },
 }
@@ -125,6 +147,14 @@ const resolvers = {
 const server = new ApolloServer({
   typeDefs,
   resolvers,
+  context: async ({ req }) => {
+    const auth = req ? req.headers.authorization : null
+    if (auth && auth.toLowerCase().startsWith("bearer ")) {
+      const decodedToken = jwt.verify(auth.substring(7), JWT_SECRET)
+      const currentUser = await User.findById(decodedToken.id)
+      return { currentUser }
+    }
+  },
 })
 
 server.listen().then(({ url }) => {
