@@ -1,6 +1,11 @@
 const Topic = require("./models/topic")
+const User = require("./models/user")
 const bcrypt = require("bcrypt")
+
+const jwt = require("jsonwebtoken")
 const { UserInputError } = require("apollo-server")
+
+const JWT_SECRET = process.env.JWT_SECRET
 
 const resolvers = {
   Query: {
