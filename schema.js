@@ -2,6 +2,7 @@ const { gql } = require("apollo-server")
 
 const typeDefs = gql`
   type User {
+    name: String
     username: String!
     id: ID!
     passwordHash: String!
@@ -28,7 +29,7 @@ const typeDefs = gql`
       content: String!
       keywords: [String!]!
     ): Topic
-    createUser(username: String!, password: String!): User
+    createUser(username: String!, password: String!, name: String): User
     login(username: String!, password: String!): Token
   }
 `

@@ -66,14 +66,38 @@ const resolvers = {
     createUser: async (root, args) => {
       const saltRounds = 10
       const passwordHash = await bcrypt.hash(args.password, saltRounds)
-      const user = new User({
-        username: args.username,
-        passwordHash: passwordHash,
-      })
+
+      const user = args.name
+        ? new User({
+            username: args.username,
+            passwordHash: passwordHash,
+            name: args.name,
+          })
+        : new User({
+            username: args.username,
+            passwordHash: passwordHash,
+          })
+
       return user.save().catch((error) => {
-        throw new UserInputError(error.message, {
-          invalidArgs: args,
-        })
+        if (error.message.includes("E11000 duplicate")) {
+          throw new UserInputError(
+            `${args.username} is already taken. Try another username!`,
+            {
+              invalidArgs: args,
+            }
+          )
+        } else if (error.message.includes("User validation failed")) {
+          throw new UserInputError(
+            `The minimum allowed length for username and password is 4. Try again!`,
+            {
+              invalidArgs: args,
+            }
+          )
+        } else {
+          throw new UserInputError(error.message, {
+            invalidArgs: args,
+          })
+        }
       })
     },
     login: async (root, args) => {
@@ -84,7 +108,7 @@ const resolvers = {
           : await bcrypt.compare(args.password, user.passwordHash)
 
       if (!(user && passwordCorrect)) {
-        throw new UserInputError("wrong credentials")
+        throw new UserInputError("Wrong Credentials")
       }
 
       const userForToken = {
