@@ -66,7 +66,7 @@ const resolvers = {
     createUser: async (root, args) => {
       const saltRounds = 10
       const passwordHash = await bcrypt.hash(args.password, saltRounds)
-
+      console.log(args.name)
       const user = args.name
         ? new User({
             username: args.username,
@@ -77,7 +77,7 @@ const resolvers = {
             username: args.username,
             passwordHash: passwordHash,
           })
-
+      console.log(user)
       return user.save().catch((error) => {
         if (error.message.includes("E11000 duplicate")) {
           throw new UserInputError(
